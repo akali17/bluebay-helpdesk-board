@@ -51,3 +51,23 @@ export interface Page<T> {
   total?: number;
   has_more?: boolean;
 }
+export interface StatusOption {
+  value: Status;
+  label: string;
+}
+
+export interface Holiday {
+  date: string; // "DD/MM/YYYY", site local
+  name: string;
+}
+
+export type ChangeItem =
+  | { seq: number; type: "request.created" | "request.updated"; at: string; request: HelpdeskRequest }
+  | { seq: number; type: "event.created"; at: string; request_id: number; event: RequestEvent }
+  | { seq: number; type: "staff.updated"; at: string; staff: Staff };
+
+export interface ChangesPage {
+  data: ChangeItem[];
+  next_cursor: string | null;
+  has_more: boolean;
+}
