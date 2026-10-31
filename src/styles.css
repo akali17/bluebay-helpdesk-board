@@ -7,3 +7,8 @@ th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #d9e2ec; }
 .badge.overdue { color: #b00020; }
 .filters { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; align-items: flex-start; margin-bottom: 1rem; }
 .filters fieldset { border: 1px solid #ccd; padding: 0.25rem 0.75rem; display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.clickable { cursor: pointer; }
+.clickable:hover { background: rgba(0, 0, 0, 0.04); }
+.details { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; }
+.details dt { font-weight: 600; }
+.timeline li { margin-bottom: 0.5rem; }

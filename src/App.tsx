@@ -5,6 +5,7 @@ import { applyQuery, FILTER_STATUSES, parseQuery, toSearch, type BoardQuery } fr
 import { isFutureDated, isOverdue, staffName } from "./lib/rules";
 import { useBoard } from "./useBoard";
 import type { Status } from "./types";
+import { RequestDetail } from "./RequestDetail";
 const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const isoToDisplay = (iso: string) => iso.split("-").reverse().join("/");
 const today = localDate(new Date(), browserZone);
@@ -19,20 +20,36 @@ export default function App() {
   return <Board />;
 }
 
+const readOpen = () => Number(new URLSearchParams(window.location.search).get("request")) || null;
+const buildSearch = (q: BoardQuery, id: number | null) => toSearch(q) + (id ? `&request=${id}` : "");
+
 function Board() {
   const [query, setQuery] = useState<BoardQuery>(() => parseQuery(window.location.search, DEFAULTS));
   const update = (patch: Partial<BoardQuery>) => setQuery((q) => ({ ...q, ...patch }));
 
-  // Keep the URL in sync so the link can be shared.
+  const [openId, setOpenId] = useState<number | null>(readOpen);
+
   useEffect(() => {
-    const search = toSearch(query);
+    const search = buildSearch(query, openId);
     if (search !== window.location.search) window.history.replaceState(null, "", search);
-  }, [query]);
+  }, [query, openId]);
+
+  // Browser back/forward restores the board or the open request.
+  useEffect(() => {
+    const onPop = () => { setQuery(parseQuery(window.location.search, DEFAULTS)); setOpenId(readOpen()); };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  const open = (id: number) => { window.history.pushState(null, "", buildSearch(query, id)); setOpenId(id); };
+  const close = () => { window.history.pushState(null, "", buildSearch(query, null)); setOpenId(null); };
 
   const { data, error, loading } = useBoard(query.from, query.to);
   const rows = useMemo(() => (data ? applyQuery(data.requests, query) : []), [data, query]);
   const now = new Date();
-
+  if (openId != null) {
+    return <main>{data ? <RequestDetail id={openId} board={data} onClose={close} /> : <p>Loading…</p>}</main>;
+  }
   return (
     <main>
       <h1>Requests board</h1>
@@ -93,9 +110,9 @@ function Board() {
             {rows.map((r) => {
               const site = data.sites.get(r.site_id)!;
               return (
-                <tr key={r.id}>
+                 <tr key={r.id} className="clickable" onClick={() => open(r.id)}>
                   <td>{site.name}</td>
-                  <td>{r.ref}</td>
+                  <td><a href={buildSearch(query, r.id)} onClick={(e) => { e.preventDefault(); e.stopPropagation(); open(r.id); }}>{r.ref}</a></td>
                   <td>{r.title}{isFutureDated(r, now) && <span className="badge"> future-dated</span>}</td>
                   <td>{r.priority ?? "—"}</td>
                   <td>{data.statuses.get(r.status) ?? r.status}</td>
