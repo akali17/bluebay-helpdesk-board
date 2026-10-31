@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { configured, describeError } from "./api";
 import { addDays, formatInZone, localDate } from "./lib/dates";
 import { applyQuery, FILTER_STATUSES, parseQuery, toSearch, type BoardQuery } from "./lib/boardQuery";
@@ -43,13 +43,24 @@ function Board() {
   }, []);
 
   const open = (id: number) => { window.history.pushState(null, "", buildSearch(query, id)); setOpenId(id); };
-  const close = () => { window.history.pushState(null, "", buildSearch(query, null)); setOpenId(null); };
+  const returnFocus = useRef<number | null>(null);
+  const close = () => {
+    returnFocus.current = openId;
+    window.history.pushState(null, "", buildSearch(query, null));
+    setOpenId(null);
+  };
+  useEffect(() => {
+    if (openId == null && returnFocus.current != null) {
+      document.getElementById(`ref-${returnFocus.current}`)?.focus();
+      returnFocus.current = null;
+    }
+  });
 
   const { data, error, loading, lastUpdated, liveError, retry } = useBoard(query.from, query.to);
   const rows = useMemo(() => (data ? applyQuery(data.requests, query) : []), [data, query]);
   const now = new Date();
     const liveStatus = (
-    <p className="muted" role="status">
+    <p className="muted">
       {lastUpdated
         ? `Last updated ${lastUpdated.toLocaleTimeString([], { timeZoneName: "short" })}`
         : data ? "Connecting to live updates…" : ""}
@@ -99,13 +110,13 @@ function Board() {
         </label>
         <label>Order
           <select value={query.dir} onChange={(e) => update({ dir: e.target.value as BoardQuery["dir"] })}>
-            <option value="desc">Newest first</option>
-            <option value="asc">Oldest first</option>
+            <option value="desc">Latest first</option>
+            <option value="asc">Earliest first</option>
           </select>
         </label>
       </form>
 
-      <p className="muted">
+      <p className="muted" aria-live="polite">
         {isoToDisplay(query.from)} to {isoToDisplay(query.to)}. {data ? `${rows.length} of ${data.requests.length} requests shown.` : ""}{" "}
         <button
           type="button"
@@ -126,33 +137,41 @@ function Board() {
         <p role="status">No requests match this date range and these filters. Try a wider range or untick some filters.</p>
       )}
       {data && rows.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-
-              <th>Site</th><th>Ref</th><th>Title</th><th>Priority</th><th>Status</th>
-              <th>Assignee</th><th>Created</th><th>Due</th>
+                <table role="table">
+          <caption className="sr-only">
+            Requests from {isoToDisplay(query.from)} to {isoToDisplay(query.to)}, sorted by {query.sort === "due" ? "due date" : "created date"}, {query.dir === "desc" ? "latest" : "earliest"} first. Select a reference to see its history.
+          </caption>
+          <thead role="rowgroup">
+            <tr role="row">
+              {["Site", "Ref", "Title", "Priority", "Status", "Assignee", "Created", "Due"].map((h) => (
+                <th key={h} scope="col" role="columnheader">{h}</th>
+              ))}
             </tr>
           </thead>
-          <tbody>
+          <tbody role="rowgroup">
             {rows.map((r) => {
               const site = data.sites.get(r.site_id)!;
               return (
-                 <tr key={r.id} className="clickable" onClick={() => open(r.id)}>
-                  <td>{site.name}</td>
-                  <td><a href={buildSearch(query, r.id)} onClick={(e) => { e.preventDefault(); e.stopPropagation(); open(r.id); }}>{r.ref}</a></td>
-                  <td>{r.title}{isFutureDated(r, now) && <span className="badge"> future-dated</span>}</td>
-                  <td>{r.priority ?? "—"}</td>
-                  <td>{data.statuses.get(r.status) ?? r.status}</td>
-                  <td>{r.assignee ? staffName(r.assignee.id, data.staff) : "Unassigned"}</td>
-                  <td>{formatInZone(new Date(r.created_at), site.timezone)}</td>
-                  <td>
-                    {r.due_on ? isoToDisplay(r.due_on) : "—"}
-                    {isOverdue(r, site.timezone, now) && <span className="badge overdue"> Overdue</span>}
+                <tr key={r.id} role="row" className="clickable" onClick={() => open(r.id)}>
+                  <td role="cell" data-label="Site">{site.name}</td>
+                  <td role="cell" data-label="Ref">
+                    <a id={`ref-${r.id}`} href={buildSearch(query, r.id)} onClick={(e) => { e.preventDefault(); e.stopPropagation(); open(r.id); }}>{r.ref}</a>
+                  </td>
+                  <td role="cell" data-label="Title"><span>{r.title}{isFutureDated(r, now) && <span className="badge"> future-dated</span>}</span></td>
+                  <td role="cell" data-label="Priority">{r.priority ?? "—"}</td>
+                  <td role="cell" data-label="Status">{data.statuses.get(r.status) ?? r.status}</td>
+                  <td role="cell" data-label="Assignee">{r.assignee ? staffName(r.assignee.id, data.staff) : "Unassigned"}</td>
+                  <td role="cell" data-label="Created">{formatInZone(new Date(r.created_at), site.timezone)}</td>
+                  <td role="cell" data-label="Due">
+                    <span>
+                      {r.due_on ? isoToDisplay(r.due_on) : "—"}
+                      {isOverdue(r, site.timezone, now) && <span className="badge overdue"> Overdue</span>}
+                    </span>
                   </td>
                 </tr>
               );
             })}
+
           </tbody>
         </table>
       )}
