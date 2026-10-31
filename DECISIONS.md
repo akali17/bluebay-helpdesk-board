@@ -22,6 +22,9 @@ Write in English. Short bullet points are fine. Reviewers read this file alongsi
 - Sorting by due date puts requests without a due date last in both directions; ties fall back to id so the order is stable.
 - Filtering and sorting happen in the browser on the loaded range, so changing them never re-calls the API; only changing the date range does.
 - The URL holds `from`, `to`, `site`, `status`, `sort`, `dir`. Bad or missing values fall back to the defaults, and a reversed range is swapped.
+- Rule 6 ignores events hidden by rule 5: an undone "processing" event was taken back, so it isn't treated as the first response.
+- The timeline reads oldest first (the API returns newest first), so the history reads as a story.
+- A chain of reverts (C undoes B, B undoes A) hides all three; I didn't model "undo of an undo" restoring A because the rules don't mention it.
 
 ## How I used AI
 
