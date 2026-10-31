@@ -10,7 +10,7 @@ Write in English. Short bullet points are fine. Reviewers read this file alongsi
 - "Name the zone" (rule 4) is shown as the UTC offset plus the IANA name, e.g. `07/10/2026 10:00 GMT+11 (Australia/Sydney)`, because abbreviations like "SGT" are not available in every browser and offsets make DST visible.
 ## What I found in the API or data
 
-- Some requests have `created_at` in the future (newest ~46h ahead, e.g. `2026-11-02T03:55:11Z`) while the server `Date` header said 31 Oct 2026 05:53 GMT. 88 requests had `created_from=01/11/2026` or later at the time of checking. They fall outside the default range (rule 1 is inclusive from..to), appear if the user picks a later end date, and are flagged "future-dated" on the board.
+- Some requests have `created_at` in the future (newest ~46h ahead, e.g. `2026-11-02T03:55:11Z`) while the server `Date` header said 31 Oct 2026 05:53 GMT. 88 requests had `created_from=01/11/2026` or later at the time of checking. Rule 1 compares site-local dates, so requests created later today (e.g. 31/10 23:52 Jakarta while it was ~13:40 there) still count and appear; those on later dates appear only if the user picks a later end date. All of them are flagged "future-dated" on the board rather than hidden, since the rules don't say to drop them.
 - ~12,000 requests in total, so the board always queries by `created_from`/`created_to` and pages through results with `per_page=100`.
 - `priority` can be `null` in real data; shown as "—".
 - `location` formatting is inconsistent (`"Podium/ Cafe"` vs `"North Wing / L3 / Pantry"`); displayed as-is.
