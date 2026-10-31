@@ -20,3 +20,17 @@ export function daysAgo(days: number, today = new Date()): string {
   const date = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - days));
   return date.toISOString().slice(0, 10);
 }
+/** "2026-10-06" + 1 -> "2026-10-07" (pure calendar arithmetic). */
+export function addDays(isoDate: string, days: number): string {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+/** "07/10/2026 10:00 GMT+11 (Australia/Sydney)": an instant shown in a site's timezone, zone named. */
+export function formatInZone(instant: Date, timeZone: string): string {
+  const text = new Intl.DateTimeFormat("en-GB", {
+    timeZone, day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "shortOffset",
+  }).format(instant).replace(",", "");
+  return `${text} (${timeZone})`;
+}
