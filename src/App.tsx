@@ -48,17 +48,13 @@ function Board() {
   const { data, error, loading, lastUpdated, liveError } = useBoard(query.from, query.to);
   const rows = useMemo(() => (data ? applyQuery(data.requests, query) : []), [data, query]);
   const now = new Date();
-  const liveStatus = (
-      <p className="muted">
-        {isoToDisplay(query.from)} to {isoToDisplay(query.to)}. {loading ? "Loading…" : data ? `${rows.length} of ${data.requests.length} requests shown.` : ""}{" "}
-        <button
-          type="button"
-          disabled={!data || loading}
-          onClick={() => data && downloadCsv(toCsv(rows, data), csvFilename(query.from, query.to))}
-        >
-          Download CSV ({rows.length} rows)
-        </button>
-      </p>
+    const liveStatus = (
+    <p className="muted" role="status">
+      {lastUpdated
+        ? `Last updated ${lastUpdated.toLocaleTimeString([], { timeZoneName: "short" })}`
+        : data ? "Connecting to live updates…" : ""}
+      {liveError != null && " · Live updates are failing, retrying in 20 s"}
+    </p>
   );
     if (openId != null) {
     return (
@@ -109,8 +105,15 @@ function Board() {
         </label>
       </form>
 
-      <p className="muted">
-        {isoToDisplay(query.from)} to {isoToDisplay(query.to)}. {loading ? "Loading…" : data ? `${rows.length} of ${data.requests.length} requests shown.` : ""}
+        <p className="muted">
+        {isoToDisplay(query.from)} to {isoToDisplay(query.to)}. {loading ? "Loading…" : data ? `${rows.length} of ${data.requests.length} requests shown.` : ""}{" "}
+        <button
+          type="button"
+          disabled={!data || loading}
+          onClick={() => data && downloadCsv(toCsv(rows, data), csvFilename(query.from, query.to))}
+        >
+          Download CSV ({rows.length} rows)
+        </button>
       </p>
       {error != null && (
         <p role="alert">Could not load requests: {error instanceof ApiError ? `${error.status}: ${error.message}` : String(error)}</p>
