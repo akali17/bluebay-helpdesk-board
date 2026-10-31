@@ -5,6 +5,7 @@ import { applyQuery, FILTER_STATUSES, parseQuery, toSearch, type BoardQuery } fr
 import { isFutureDated, isOverdue, staffName } from "./lib/rules";
 import { useBoard } from "./useBoard";
 import type { Status } from "./types";
+import { csvFilename, downloadCsv, toCsv } from "./lib/csv";
 import { RequestDetail } from "./RequestDetail";
 const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const isoToDisplay = (iso: string) => iso.split("-").reverse().join("/");
@@ -48,12 +49,16 @@ function Board() {
   const rows = useMemo(() => (data ? applyQuery(data.requests, query) : []), [data, query]);
   const now = new Date();
   const liveStatus = (
-    <p className="muted" role="status">
-      {lastUpdated
-        ? `Last updated ${lastUpdated.toLocaleTimeString([], { timeZoneName: "short" })}`
-        : data ? "Connecting to live updates…" : ""}
-      {liveError != null && " · Live updates are failing, retrying in 20 s"}
-    </p>
+      <p className="muted">
+        {isoToDisplay(query.from)} to {isoToDisplay(query.to)}. {loading ? "Loading…" : data ? `${rows.length} of ${data.requests.length} requests shown.` : ""}{" "}
+        <button
+          type="button"
+          disabled={!data || loading}
+          onClick={() => data && downloadCsv(toCsv(rows, data), csvFilename(query.from, query.to))}
+        >
+          Download CSV ({rows.length} rows)
+        </button>
+      </p>
   );
     if (openId != null) {
     return (
