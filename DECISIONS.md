@@ -19,7 +19,9 @@ Write in English. Short bullet points are fine. Reviewers read this file alongsi
 - Rule 6 ignores events hidden by rule 5: an undone "processing" event was taken back, so it isn't treated as the first response.
 - The timeline reads oldest first (the API returns newest first), so the history reads as a story.
 - A chain of reverts (C undoes B, B undoes A) hides all three; I didn't model "undo of an undo" restoring A because the rules don't mention it.
-
+- Live updates poll `/v1/changes` every 20 s. Each round reads until `has_more: false`, applies the batch once, then saves the cursor, so an aborted round never loses changes. "Last updated" is the time the last round finished, in the viewer's timezone.
+- Change items are applied idempotently (`request` is the request as it is now), so duplicates are harmless. A request that becomes canceled, deleted or merged leaves the board; an open detail view reloads when its request or events change.
+- On `410` (cursor expired) the feed is read again from the start.
 ## What I found in the API or data
 
 - Some requests have `created_at` in the future (newest ~46h ahead, e.g. `2026-11-02T03:55:11Z`) while the server `Date` header said 31 Oct 2026 05:53 GMT. 88 requests had `created_from=01/11/2026` or later at the time of checking. Rule 1 compares site-local dates, so requests created later today (e.g. 31/10 23:52 Jakarta while it was ~13:40 there) still count and appear; those on later dates appear only if the user picks a later end date. All of them are flagged "future-dated" on the board rather than hidden, since the rules don't say to drop them.
@@ -29,7 +31,8 @@ Write in English. Short bullet points are fine. Reviewers read this file alongsi
 - `location` formatting is inconsistent (`"Podium/ Cafe"` vs `"North Wing / L3 / Pantry"`); displayed as-is.
 - Events carry `assignee_name` but no assignee id, so rule 3's lookup isn't possible for it. I show it labelled "(name at the time)" rather than hiding who was assigned.
 - Three sites: Singapore (`Asia/Singapore`), Sydney (`Australia/Sydney`, observes DST), Jakarta (`Asia/Jakarta`, open Saturday mornings). All conversions use `Intl` with the IANA name, never fixed offsets.
-
+- `/v1/changes` can only be read from the beginning. Catching up on first load took ~160 calls, ~28 MB and ~60–70 s (31 Oct), with ~34 `429` responses along the way; the client waits for `Retry-After` and carries on. Browsers log each `429` in the console, which is expected.
+- Events can also be in the future (e.g. a first response at 01/11/2026 07:19 Jakarta time on 31 Oct).
 ## How I used AI
 
 <!-- Which tools, what you asked, what came back wrong, what you changed. "I didn't use AI" is fine too. -->
@@ -40,3 +43,4 @@ Write in English. Short bullet points are fine. Reviewers read this file alongsi
 - Did not run `npm audit fix --force`: the reported vulnerabilities are in dev tooling and forcing fixes would bump major versions of the starter.
 - Rules live in `src/lib/rules.ts` and `src/lib/events.ts` as pure functions with unit tests, so they can be checked without the API or the UI.
 - Filtering and sorting happen in the browser on the loaded range, so changing them never re-calls the API; only changing the date range does. The cost is loading the whole range up front.
+- Because the feed has no "start from now", the first ~minute after opening the board is spent catching up; the board shows a fresh snapshot meanwhile, so only changes made during that minute can appear later than one minute. With a back end I would keep the cursor server-side.
