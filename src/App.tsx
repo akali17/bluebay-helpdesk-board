@@ -1,8 +1,7 @@
 import { ApiError, configured } from "./api";
-import { addDays, localDate } from "./lib/dates";
 import { isFutureDated, isOverdue, staffName } from "./lib/rules";
 import { useBoard } from "./useBoard";
-
+import { addDays, formatInZone, localDate } from "./lib/dates";
 const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const isoToDisplay = (iso: string) => iso.split("-").reverse().join("/"); // 2026-10-07 -> 07/10/2026
 
@@ -49,7 +48,7 @@ function Board() {
                   <td>{r.priority ?? "—"}</td>
                   <td>{data.statuses.get(r.status) ?? r.status}</td>
                   <td>{r.assignee ? staffName(r.assignee.id, data.staff) : "Unassigned"}</td>
-                  <td>{isoToDisplay(localDate(new Date(r.created_at), site.timezone))}</td>
+                  <td>{formatInZone(new Date(r.created_at), site.timezone)}</td>
                   <td>
                     {r.due_on ? isoToDisplay(r.due_on) : "—"}
                     {overdue && <span className="badge overdue"> Overdue</span>}

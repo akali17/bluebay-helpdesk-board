@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { getAllPages, listRequests, listSites, listStaff, listStatuses } from "./api";
 import { toApiDate } from "./lib/dates";
 import { apiRange, countsInRange } from "./lib/rules";
-import type { HelpdeskRequest, Site, Staff, StatusOption } from "./types";
+import type { HelpdeskRequest, Site, Staff } from "./types";
 
 export interface BoardData {
   requests: HelpdeskRequest[];
