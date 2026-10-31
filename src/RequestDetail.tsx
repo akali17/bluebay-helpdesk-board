@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ApiError, getAllPages, getRequest, listEvents } from "./api";
+import { describeError, getAllPages, getRequest, listEvents } from "./api";
 import { formatInZone } from "./lib/dates";
 import { firstResponse, timeline, undoneIds } from "./lib/events";
 import { isOverdue, staffName } from "./lib/rules";
@@ -13,6 +13,7 @@ export function RequestDetail({ id, version, board, onClose }: { id: number; ver
   const [events, setEvents] = useState<RequestEvent[]>([]);
   const [error, setError] = useState<unknown>(null);
   const [showUndone, setShowUndone] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const heading = useRef<HTMLHeadingElement>(null);
 
  useEffect(() => { setReq(null); setEvents([]); setError(null); }, [id]);
@@ -23,7 +24,7 @@ export function RequestDetail({ id, version, board, onClose }: { id: number; ver
       .then(([r, ev]) => { setReq(r); setEvents(ev); setError(null); })
       .catch((e: unknown) => { if (!ctrl.signal.aborted) setError(e); });
     return () => ctrl.abort();
-  }, [id, version]);
+  }, [id, version, attempt]);
 
    const focusedFor = useRef<number | null>(null);
   useEffect(() => {
@@ -32,10 +33,12 @@ export function RequestDetail({ id, version, board, onClose }: { id: number; ver
 
   const back = <button type="button" onClick={onClose}>← Back to board</button>;
 
-  if (error != null) {
-    return <>{back}<p role="alert">Could not load request: {error instanceof ApiError ? `${error.status}: ${error.message}` : String(error)}</p></>;
+    const retryButton = <button type="button" onClick={() => setAttempt((a) => a + 1)}>Try again</button>;
+  if (error != null && !req) {
+    return <>{back}<div role="alert" className="error"><p>Could not load this request. {describeError(error)}</p>{retryButton}</div></>;
   }
-  if (!req) return <>{back}<p>Loading request…</p></>;
+  if (!req) return <>{back}<p role="status">Loading request and its history…</p></>;
+  
 
   const site = board.sites.get(req.site_id);
   const tz = site?.timezone ?? "UTC";
@@ -49,6 +52,7 @@ export function RequestDetail({ id, version, board, onClose }: { id: number; ver
     <>
       {back}
       <h2 ref={heading} tabIndex={-1}>{req.ref}: {req.title}</h2>
+            {error != null && <div role="alert" className="error"><p>Showing the last loaded version. {describeError(error)}</p>{retryButton}</div>}
       <dl className="details">
         <dt>Site</dt><dd>{site?.name ?? `Site #${req.site_id}`}</dd>
         <dt>Location</dt><dd>{req.location}</dd>

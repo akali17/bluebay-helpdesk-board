@@ -22,7 +22,10 @@ export function useBoard(from: string, to: string) {
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [liveError, setLiveError] = useState<unknown>(null);
-  const cursor = useRef<string | undefined>(undefined); // survives range changes
+  const [attempt, setAttempt] = useState(0); // bumped by "Try again"
+    // Feed position and items read but not yet applied. Kept across failed rounds and range
+  // changes, so a 429 mid catch-up resumes where it stopped instead of starting over.
+  const feed = useRef<{ cursor: string | undefined; items: ChangeItem[] }>({ cursor: undefined, items: [] });
   const key = `${from}|${to}`;
 
   // Snapshot of the range (rule 1).
@@ -32,6 +35,8 @@ export function useBoard(from: string, to: string) {
     setLoading(true);
 
     setError(null);
+
+    setData(null);
 
     (async () => {
       const [sites, staff, statuses] = await Promise.all([listSites(signal), listStaff(signal), listStatuses(signal)]);
@@ -58,7 +63,7 @@ export function useBoard(from: string, to: string) {
       .finally(() => { if (!signal.aborted) setLoading(false); });
 
     return () => ctrl.abort();
-  }, [from, to]);
+  }, [from, to, attempt]);
 
   // Live: follow /v1/changes and apply it to the snapshot.
   useEffect(() => {
@@ -68,31 +73,30 @@ export function useBoard(from: string, to: string) {
     const { signal } = ctrl;
     let timer: ReturnType<typeof setTimeout> | undefined;
 
-const poll = async () => {
+    const poll = async () => {
+      const f = feed.current;
       try {
-        let next = cursor.current;
-        const batch: ChangeItem[] = [];
         for (;;) {
           let page;
           try {
-            page = await listChanges(next, 500, signal);
+            page = await listChanges(f.cursor, 500, signal);
           } catch (e) {
-            if (e instanceof ApiError && e.status === 410) { next = undefined; batch.length = 0; continue; } // cursor expired: start over
+            if (e instanceof ApiError && e.status === 410) { f.cursor = undefined; continue; } // cursor expired: read again from the start
             throw e;
           }
-          batch.push(...page.data);
-          if (page.next_cursor) next = page.next_cursor;
+          f.items.push(...page.data);
+          if (page.next_cursor) f.cursor = page.next_cursor;
           if (!page.has_more) break;
         }
-        // Apply once per round (re-rendering the table per page made catch-up ~1 s per page),
-        // and only then move the cursor, so an abort never loses changes.
+        // Up to date: apply everything read so far in one render. Applying is idempotent.
+        const batch = f.items;
+        f.items = [];
         if (batch.length) setData((prev) => (prev ? applyChanges(prev, batch, from, to) : prev));
-        cursor.current = next;
         setLastUpdated(new Date());
         setLiveError(null);
       } catch (e) {
         if (signal.aborted) return;
-        setLiveError(e);
+        setLiveError(e); // progress is kept in `feed`; the next round continues from there
       }
       if (!signal.aborted) timer = setTimeout(poll, POLL_MS);
     };
@@ -101,6 +105,5 @@ const poll = async () => {
     return () => { ctrl.abort(); clearTimeout(timer); };
   }, [loadedFor, key, from, to]);
 
-  return { data, error, loading, lastUpdated, liveError };
-
+  return { data, error, loading, lastUpdated, liveError, retry: () => setAttempt((a) => a + 1) };
 }

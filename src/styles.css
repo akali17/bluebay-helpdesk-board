@@ -12,3 +12,4 @@ th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #d9e2ec; }
 .details { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1rem; }
 .details dt { font-weight: 600; }
 .timeline li { margin-bottom: 0.5rem; }
+.error { border-left: 4px solid #b00020; padding: 0.25rem 0.75rem; background: #fff4f4; }

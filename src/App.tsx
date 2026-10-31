@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ApiError, configured } from "./api";
+import { configured, describeError } from "./api";
 import { addDays, formatInZone, localDate } from "./lib/dates";
 import { applyQuery, FILTER_STATUSES, parseQuery, toSearch, type BoardQuery } from "./lib/boardQuery";
 import { isFutureDated, isOverdue, staffName } from "./lib/rules";
@@ -45,7 +45,7 @@ function Board() {
   const open = (id: number) => { window.history.pushState(null, "", buildSearch(query, id)); setOpenId(id); };
   const close = () => { window.history.pushState(null, "", buildSearch(query, null)); setOpenId(null); };
 
-  const { data, error, loading, lastUpdated, liveError } = useBoard(query.from, query.to);
+  const { data, error, loading, lastUpdated, liveError, retry } = useBoard(query.from, query.to);
   const rows = useMemo(() => (data ? applyQuery(data.requests, query) : []), [data, query]);
   const now = new Date();
     const liveStatus = (
@@ -105,8 +105,8 @@ function Board() {
         </label>
       </form>
 
-        <p className="muted">
-        {isoToDisplay(query.from)} to {isoToDisplay(query.to)}. {loading ? "Loading…" : data ? `${rows.length} of ${data.requests.length} requests shown.` : ""}{" "}
+      <p className="muted">
+        {isoToDisplay(query.from)} to {isoToDisplay(query.to)}. {data ? `${rows.length} of ${data.requests.length} requests shown.` : ""}{" "}
         <button
           type="button"
           disabled={!data || loading}
@@ -116,9 +116,16 @@ function Board() {
         </button>
       </p>
       {error != null && (
-        <p role="alert">Could not load requests: {error instanceof ApiError ? `${error.status}: ${error.message}` : String(error)}</p>
+        <div role="alert" className="error">
+          <p>Could not load requests. {describeError(error)}</p>
+          <button type="button" onClick={retry}>Try again</button>
+        </div>
       )}
-      {data && (
+      {loading && <p role="status">Loading requests for this range… large ranges can take a few seconds.</p>}
+      {data && rows.length === 0 && (
+        <p role="status">No requests match this date range and these filters. Try a wider range or untick some filters.</p>
+      )}
+      {data && rows.length > 0 && (
         <table>
           <thead>
             <tr>

@@ -104,3 +104,14 @@ export const listHolidays = (siteId: number, signal?: AbortSignal) =>
 
 export const listChanges = (cursor?: string, limit = 500, signal?: AbortSignal) =>
   get<ChangesPage>("/v1/changes", { cursor, limit }, signal);
+/** A message a site manager can act on. */
+export function describeError(e: unknown): string {
+  if (e instanceof ApiError) {
+    if (e.status === 401 || e.status === 403) return "The helpdesk rejected the access token. Check HELPDESK_TOKEN in .env.";
+    if (e.status === 404) return "This was not found in the helpdesk.";
+    if (e.status === 429 || e.status >= 500) return "The helpdesk is busy or briefly down. We already retried a few times; please try again in a moment.";
+    return `The helpdesk returned an error (${e.status}: ${e.message}).`;
+  }
+  if (e instanceof TypeError) return "Could not reach the helpdesk. Check your internet connection.";
+  return String(e);
+}
