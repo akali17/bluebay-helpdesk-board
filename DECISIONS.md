@@ -22,6 +22,10 @@ Write in English. Short bullet points are fine. Reviewers read this file alongsi
 - Live updates poll `/v1/changes` every 20 s. Each round reads until `has_more: false`, applies the batch once, then saves the cursor, so an aborted round never loses changes. "Last updated" is the time the last round finished, in the viewer's timezone.
 - Change items are applied idempotently (`request` is the request as it is now), so duplicates are harmless. A request that becomes canceled, deleted or merged leaves the board; an open detail view reloads when its request or events change.
 - On `410` (cursor expired) the feed is read again from the start.
+- CSV (client request, 31 Oct): values match what the board shows. `site` is the site name, `status` the label from `/v1/statuses`, `assignee` the current staff name (rule 3), `created_at` exactly as on the board. `due_on` stays `YYYY-MM-DD` like the field name; `overdue` uses the same rule 2 check as the badge.
+- The CSV uses CRLF line endings (RFC 4180) and no BOM, so the first line is exactly the header. Excel may need "Data → From Text/CSV" to show non-ASCII names correctly.
+- The file holds every row matching the current range, filters and sort, not only the rows on screen: the board already loads every page of the range.
+- Excel reformats `due_on` into the computer's date format on open (e.g. `10/7/2026`); the file itself holds `2026-10-07`.
 ## What I found in the API or data
 
 - Some requests have `created_at` in the future (newest ~46h ahead, e.g. `2026-11-02T03:55:11Z`) while the server `Date` header said 31 Oct 2026 05:53 GMT. 88 requests had `created_from=01/11/2026` or later at the time of checking. Rule 1 compares site-local dates, so requests created later today (e.g. 31/10 23:52 Jakarta while it was ~13:40 there) still count and appear; those on later dates appear only if the user picks a later end date. All of them are flagged "future-dated" on the board rather than hidden, since the rules don't say to drop them.
