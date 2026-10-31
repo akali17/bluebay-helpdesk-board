@@ -1,9 +1,16 @@
+import { useEffect, useMemo, useState } from "react";
 import { ApiError, configured } from "./api";
+import { addDays, formatInZone, localDate } from "./lib/dates";
+import { applyQuery, FILTER_STATUSES, parseQuery, toSearch, type BoardQuery } from "./lib/boardQuery";
 import { isFutureDated, isOverdue, staffName } from "./lib/rules";
 import { useBoard } from "./useBoard";
-import { addDays, formatInZone, localDate } from "./lib/dates";
+import type { Status } from "./types";
 const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-const isoToDisplay = (iso: string) => iso.split("-").reverse().join("/"); // 2026-10-07 -> 07/10/2026
+const isoToDisplay = (iso: string) => iso.split("-").reverse().join("/");
+const today = localDate(new Date(), browserZone);
+const DEFAULTS = { from: addDays(today, -29), to: today }; // last 30 days, inclusive
+
+const toggle = <T,>(list: T[], value: T) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
 
 export default function App() {
   if (!configured()) {
@@ -13,33 +20,78 @@ export default function App() {
 }
 
 function Board() {
-  const to = localDate(new Date(), browserZone);
-  const from = addDays(to, -29); // last 30 days, inclusive
-  const { data, error, loading } = useBoard(from, to);
+  const [query, setQuery] = useState<BoardQuery>(() => parseQuery(window.location.search, DEFAULTS));
+  const update = (patch: Partial<BoardQuery>) => setQuery((q) => ({ ...q, ...patch }));
+
+  // Keep the URL in sync so the link can be shared.
+  useEffect(() => {
+    const search = toSearch(query);
+    if (search !== window.location.search) window.history.replaceState(null, "", search);
+  }, [query]);
+
+  const { data, error, loading } = useBoard(query.from, query.to);
+  const rows = useMemo(() => (data ? applyQuery(data.requests, query) : []), [data, query]);
   const now = new Date();
 
   return (
     <main>
       <h1>Requests board</h1>
+
+      <form className="filters" onSubmit={(e) => e.preventDefault()}>
+        <label>From <input type="date" value={query.from} max={query.to} onChange={(e) => e.target.value && update({ from: e.target.value })} /></label>
+        <label>To <input type="date" value={query.to} min={query.from} onChange={(e) => e.target.value && update({ to: e.target.value })} /></label>
+
+        <fieldset>
+          <legend>Site</legend>
+          {data && [...data.sites.values()].map((s) => (
+            <label key={s.id}>
+              <input type="checkbox" checked={query.sites.includes(s.id)} onChange={() => update({ sites: toggle(query.sites, s.id) })} /> {s.name}
+            </label>
+          ))}
+        </fieldset>
+
+        <fieldset>
+
+          <legend>Status</legend>
+          {FILTER_STATUSES.map((s: Status) => (
+            <label key={s}>
+              <input type="checkbox" checked={query.statuses.includes(s)} onChange={() => update({ statuses: toggle(query.statuses, s) })} /> {data?.statuses.get(s) ?? s}
+            </label>
+          ))}
+        </fieldset>
+
+        <label>Sort by
+          <select value={query.sort} onChange={(e) => update({ sort: e.target.value as BoardQuery["sort"] })}>
+            <option value="created">Created date</option>
+            <option value="due">Due date</option>
+          </select>
+        </label>
+        <label>Order
+          <select value={query.dir} onChange={(e) => update({ dir: e.target.value as BoardQuery["dir"] })}>
+            <option value="desc">Newest first</option>
+            <option value="asc">Oldest first</option>
+          </select>
+        </label>
+      </form>
+
       <p className="muted">
-        {isoToDisplay(from)} to {isoToDisplay(to)}. {loading ? "Loading…" : data ? `${data.requests.length} requests.` : ""}
+        {isoToDisplay(query.from)} to {isoToDisplay(query.to)}. {loading ? "Loading…" : data ? `${rows.length} of ${data.requests.length} requests shown.` : ""}
       </p>
       {error != null && (
         <p role="alert">Could not load requests: {error instanceof ApiError ? `${error.status}: ${error.message}` : String(error)}</p>
       )}
       {data && (
         <table>
-
           <thead>
             <tr>
+
               <th>Site</th><th>Ref</th><th>Title</th><th>Priority</th><th>Status</th>
               <th>Assignee</th><th>Created</th><th>Due</th>
             </tr>
           </thead>
           <tbody>
-            {data.requests.map((r) => {
+            {rows.map((r) => {
               const site = data.sites.get(r.site_id)!;
-              const overdue = isOverdue(r, site.timezone, now);
               return (
                 <tr key={r.id}>
                   <td>{site.name}</td>
@@ -51,7 +103,7 @@ function Board() {
                   <td>{formatInZone(new Date(r.created_at), site.timezone)}</td>
                   <td>
                     {r.due_on ? isoToDisplay(r.due_on) : "—"}
-                    {overdue && <span className="badge overdue"> Overdue</span>}
+                    {isOverdue(r, site.timezone, now) && <span className="badge overdue"> Overdue</span>}
                   </td>
                 </tr>
               );

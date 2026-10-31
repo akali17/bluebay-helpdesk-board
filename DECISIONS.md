@@ -18,6 +18,10 @@ Write in English. Short bullet points are fine. Reviewers read this file alongsi
 - "Last 30 days" = today in the viewer's browser timezone and the 29 days before it, inclusive. Each request is then checked against that range in its own site's timezone (rule 1).
 - The board shows a Created column (site-local date) because sorting by created date needs it to be visible.
 - Overdue and future-dated are shown as text badges, not colour alone, so they work for screen readers and colour-blind users.
+- Filters with nothing ticked mean "all". Canceled is not offered as a status filter because rule 1 never counts canceled requests.
+- Sorting by due date puts requests without a due date last in both directions; ties fall back to id so the order is stable.
+- Filtering and sorting happen in the browser on the loaded range, so changing them never re-calls the API; only changing the date range does.
+- The URL holds `from`, `to`, `site`, `status`, `sort`, `dir`. Bad or missing values fall back to the defaults, and a reversed range is swapped.
 
 ## How I used AI
 
