@@ -15,6 +15,9 @@ Write in English. Short bullet points are fine. Reviewers read this file alongsi
 - `priority` can be `null` in real data; shown as "—".
 - `location` formatting is inconsistent (`"Podium/ Cafe"` vs `"North Wing / L3 / Pantry"`); displayed as-is.
 - Three sites: Singapore (`Asia/Singapore`), Sydney (`Australia/Sydney`, observes DST), Jakarta (`Asia/Jakarta`, open Saturday mornings). All conversions use `Intl` with the IANA name, never fixed offsets.
+- "Last 30 days" = today in the viewer's browser timezone and the 29 days before it, inclusive. Each request is then checked against that range in its own site's timezone (rule 1).
+- The board shows a Created column (site-local date) because sorting by created date needs it to be visible.
+- Overdue and future-dated are shown as text badges, not colour alone, so they work for screen readers and colour-blind users.
 
 ## How I used AI
 

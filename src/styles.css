@@ -3,3 +3,5 @@ body { margin: 0; padding: 16px; }
 table { border-collapse: collapse; width: 100%; }
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #d9e2ec; }
 .muted { color: #627d98; }
+.badge { font-size: 0.8em; font-weight: 600; margin-left: 0.25em; }
+.badge.overdue { color: #b00020; }
