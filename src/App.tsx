@@ -44,16 +44,29 @@ function Board() {
   const open = (id: number) => { window.history.pushState(null, "", buildSearch(query, id)); setOpenId(id); };
   const close = () => { window.history.pushState(null, "", buildSearch(query, null)); setOpenId(null); };
 
-  const { data, error, loading } = useBoard(query.from, query.to);
+  const { data, error, loading, lastUpdated, liveError } = useBoard(query.from, query.to);
   const rows = useMemo(() => (data ? applyQuery(data.requests, query) : []), [data, query]);
   const now = new Date();
-  if (openId != null) {
-    return <main>{data ? <RequestDetail id={openId} board={data} onClose={close} /> : <p>Loading…</p>}</main>;
+  const liveStatus = (
+    <p className="muted" role="status">
+      {lastUpdated
+        ? `Last updated ${lastUpdated.toLocaleTimeString([], { timeZoneName: "short" })}`
+        : data ? "Connecting to live updates…" : ""}
+      {liveError != null && " · Live updates are failing, retrying in 20 s"}
+    </p>
+  );
+    if (openId != null) {
+    return (
+      <main>
+        {liveStatus}
+        {data ? <RequestDetail id={openId} version={data.versions.get(openId) ?? 0} board={data} onClose={close} /> : <p>Loading…</p>}
+      </main>
+    );
   }
   return (
     <main>
       <h1>Requests board</h1>
-
+      {liveStatus}
       <form className="filters" onSubmit={(e) => e.preventDefault()}>
         <label>From <input type="date" value={query.from} max={query.to} onChange={(e) => e.target.value && update({ from: e.target.value })} /></label>
         <label>To <input type="date" value={query.to} min={query.from} onChange={(e) => e.target.value && update({ to: e.target.value })} /></label>

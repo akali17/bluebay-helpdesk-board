@@ -8,26 +8,27 @@ import type { BoardData } from "./useBoard";
 
 const isoToDisplay = (iso: string) => iso.split("-").reverse().join("/");
 
-export function RequestDetail({ id, board, onClose }: { id: number; board: BoardData; onClose: () => void }) {
+export function RequestDetail({ id, version, board, onClose }: { id: number; version: number; board: BoardData; onClose: () => void }) {
   const [req, setReq] = useState<HelpdeskRequest | null>(null);
   const [events, setEvents] = useState<RequestEvent[]>([]);
   const [error, setError] = useState<unknown>(null);
   const [showUndone, setShowUndone] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
 
+ useEffect(() => { setReq(null); setEvents([]); setError(null); }, [id]);
+
   useEffect(() => {
     const ctrl = new AbortController();
-    setReq(null);
-    setEvents([]);
-    setError(null);
     Promise.all([getRequest(id, ctrl.signal), getAllPages((p) => listEvents(id, p, ctrl.signal))])
-      .then(([r, ev]) => { setReq(r); setEvents(ev); })
+      .then(([r, ev]) => { setReq(r); setEvents(ev); setError(null); })
       .catch((e: unknown) => { if (!ctrl.signal.aborted) setError(e); });
     return () => ctrl.abort();
-  }, [id]);
+  }, [id, version]);
 
-  // Move focus to the heading so keyboard and screen reader users land on the new content.
-  useEffect(() => { if (req) heading.current?.focus(); }, [req]);
+   const focusedFor = useRef<number | null>(null);
+  useEffect(() => {
+    if (req && focusedFor.current !== id) { heading.current?.focus(); focusedFor.current = id; }
+  }, [req, id]);
 
   const back = <button type="button" onClick={onClose}>← Back to board</button>;
 
