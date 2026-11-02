@@ -1,7 +1,5 @@
 # DECISIONS
 
-Write in English. Short bullet points are fine. Reviewers read this file alongside your code.
-
 ## What I assumed
 
 - "Today" is the real clock (matches the server `Date` header), converted to each site's timezone. It drives the default 30-day range and the overdue flag.
@@ -19,16 +17,22 @@ Write in English. Short bullet points are fine. Reviewers read this file alongsi
 - Rule 6 ignores events hidden by rule 5: an undone "processing" event was taken back, so it isn't treated as the first response.
 - The timeline reads oldest first (the API returns newest first), so the history reads as a story.
 - A chain of reverts (C undoes B, B undoes A) hides all three; I didn't model "undo of an undo" restoring A because the rules don't mention it.
-- Live updates poll `/v1/changes` every 20 s. Each round reads until `has_more: false`, applies the batch once, then saves the cursor, so an aborted round never loses changes. "Last updated" is the time the last round finished, in the viewer's timezone.
+- Live updates poll `/v1/changes` every 20 s. Each round reads until `has_more: false` and applies what it read in one render. The feed position and any unapplied items are kept across rounds, so an interrupted or failed round resumes instead of starting over or losing changes. "Last updated" is the time the last round finished, in the viewer's timezone.
 - Change items are applied idempotently (`request` is the request as it is now), so duplicates are harmless. A request that becomes canceled, deleted or merged leaves the board; an open detail view reloads when its request or events change.
 - On `410` (cursor expired) the feed is read again from the start.
 - CSV (client request, 31 Oct): values match what the board shows. `site` is the site name, `status` the label from `/v1/statuses`, `assignee` the current staff name (rule 3), `created_at` exactly as on the board. `due_on` stays `YYYY-MM-DD` like the field name; `overdue` uses the same rule 2 check as the badge.
-- The CSV uses CRLF line endings (RFC 4180) and no BOM, so the first line is exactly the header. Excel may need "Data → From Text/CSV" to show non-ASCII names correctly.
-- The file holds every row matching the current range, filters and sort, not only the rows on screen: the board already loads every page of the range.
-- Excel reformats `due_on` into the computer's date format on open (e.g. `10/7/2026`); the file itself holds `2026-10-07`.
+- The CSV holds every row matching the current range, filters and sort, not only the rows on screen: the board already loads every page of the range.
+- The CSV uses CRLF line endings (RFC 4180) and no BOM, so the first line is exactly the header. Excel may need "Data → From Text/CSV" to show non-ASCII names correctly, and it reformats `due_on` into the computer's date format on open (e.g. `10/7/2026`); the file itself holds `2026-10-07`.
+- Error messages are written for a site manager and depend on the cause: rejected token, helpdesk busy or down (after retries), or no connection. The board and the detail view both offer "Try again".
+- While a new range loads, the old rows are cleared so nobody reads the wrong range. If a detail refresh fails, the last loaded version stays on screen with a warning.
+- Phones (≤700px): each row becomes a labelled card. The table keeps explicit ARIA roles because `display: block` can drop table semantics in some browsers.
+- Keyboard: the Ref is a real link; opening a request moves focus to its heading, closing it returns focus to the same link; focus outlines are always visible.
+- Screen readers: the row count is announced when filters change (`aria-live="polite"`). "Last updated" is deliberately not announced every 20 s, which would be noise.
+
 ## What I found in the API or data
 
 - Some requests have `created_at` in the future (newest ~46h ahead, e.g. `2026-11-02T03:55:11Z`) while the server `Date` header said 31 Oct 2026 05:53 GMT. 88 requests had `created_from=01/11/2026` or later at the time of checking. Rule 1 compares site-local dates, so requests created later today (e.g. 31/10 23:52 Jakarta while it was ~13:40 there) still count and appear; those on later dates appear only if the user picks a later end date. All of them are flagged "future-dated" on the board rather than hidden, since the rules don't say to drop them.
+- Events can also be in the future (e.g. a first response at 01/11/2026 07:19 Jakarta time on 31 Oct).
 - ~12,000 requests in total, so the board always queries by `created_from`/`created_to` and pages through results with `per_page=100`.
 - Data changes while paging through `/v1/requests`, so the same request can appear on two pages; the board de-duplicates by `id` (events too).
 - `priority` can be `null` in real data; shown as "—".
@@ -36,7 +40,9 @@ Write in English. Short bullet points are fine. Reviewers read this file alongsi
 - Events carry `assignee_name` but no assignee id, so rule 3's lookup isn't possible for it. I show it labelled "(name at the time)" rather than hiding who was assigned.
 - Three sites: Singapore (`Asia/Singapore`), Sydney (`Australia/Sydney`, observes DST), Jakarta (`Asia/Jakarta`, open Saturday mornings). All conversions use `Intl` with the IANA name, never fixed offsets.
 - `/v1/changes` can only be read from the beginning. Catching up on first load took ~160 calls, ~28 MB and ~60–70 s (31 Oct), with ~34 `429` responses along the way; the client waits for `Retry-After` and carries on. Browsers log each `429` in the console, which is expected.
-- Events can also be in the future (e.g. a first response at 01/11/2026 07:19 Jakarta time on 31 Oct).
+- Retrying a single call wasn't enough under `429`: when one page failed 4 times mid catch-up, the whole round started again from the beginning and looped (3,600+ calls and ~260 MB in one test). The feed position and unapplied items are now kept across failed rounds, so the next round resumes.
+- Every call has a CORS preflight because of the `Authorization` header; unavoidable for a browser-only app.
+
 ## How I used AI
 
 <!-- Which tools, what you asked, what came back wrong, what you changed. "I didn't use AI" is fine too. -->
@@ -45,6 +51,9 @@ Write in English. Short bullet points are fine. Reviewers read this file alongsi
 
 - `HELPDESK_TOKEN` is bundled into the browser build (Vite `envPrefix`). Acceptable for the practice API; a real app would call through a small proxy.
 - Did not run `npm audit fix --force`: the reported vulnerabilities are in dev tooling and forcing fixes would bump major versions of the starter.
-- Rules live in `src/lib/rules.ts` and `src/lib/events.ts` as pure functions with unit tests, so they can be checked without the API or the UI.
+- The rules and board logic live in `src/lib/` (`rules.ts`, `events.ts`, `changes.ts`, `boardQuery.ts`, `csv.ts`) as pure functions with unit tests, so they can be checked without the API or the UI.
 - Filtering and sorting happen in the browser on the loaded range, so changing them never re-calls the API; only changing the date range does. The cost is loading the whole range up front.
 - Because the feed has no "start from now", the first ~minute after opening the board is spent catching up; the board shows a fresh snapshot meanwhile, so only changes made during that minute can appear later than one minute. With a back end I would keep the cursor server-side.
+- If the first load fails, the Site filter is empty because site names arrive with the same load. Next I would load and cache sites separately.
+- Retries are fixed (4 attempts per call, live polling every 20 s). Next: show a countdown and slow live polling down while the helpdesk is unavailable.
+- Tested with Chrome device mode (iPhone SE) and Windows Narrator, not on a real phone or with VoiceOver/NVDA.
