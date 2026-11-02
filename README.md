@@ -1,55 +1,97 @@
-# Requests board: starter kit
+# Bluebay requests board
 
-The rules are in the brief on your invitation page. Everything else is here.
+A board for Bluebay Properties site managers to see helpdesk requests across Singapore, Sydney and Jakarta. It runs in the browser and reads straight from the helpdesk; there is no server of its own.
 
-```
-docs/rules.md       the brief's rules with the exact field names
-docs/api.md         the helpdesk API your app reads (from the browser)
-starters/           a runnable starter in React and in Vue, both TypeScript + Vite + Vitest: pick one
-DECISIONS.md        fill this in; it is part of your submission
-.env.example        copy to .env and paste in your practice API details
-```
+## Getting started
 
-## Setup
+You need [Node.js](https://nodejs.org) 20 or newer.
 
-You need Node 20+ and Git.
+1. Create a file called `.env` in this folder (copy `.env.example`) with the helpdesk address and your access token:
 
-```bash
-git init && git add -A && git commit -m "chore: start from the kit"
-cp -r starters/react-vite/. . && rm -r starters   # or starters/vue-vite
-cp .env.example .env                              # paste in HELPDESK_URL and HELPDESK_TOKEN
-npm install
-npm run dev                                       # http://localhost:5173
-npm test                                          # exit 0 = pass
-```
+   ```
+   HELPDESK_URL=https://...
+   HELPDESK_TOKEN=...
+   ```
 
-Check the API works:
+   The token is private: don't commit `.env` or share it.
 
-```bash
-curl -H "Authorization: Bearer $HELPDESK_TOKEN" "$HELPDESK_URL/v1/statuses"
-```
+2. Install and start:
 
-You may change anything in the starter, add libraries, or start from your own Vite project. Keep
-these working at the repo root, because a script checks them before anyone reads your code:
+   ```
+   npm install
+   npm run dev
+   ```
 
-| Check | Command |
+3. Open http://localhost:5173.
+
+## Using the board
+
+### Choosing what you see
+
+- The board opens on the **last 30 days**. Change **From** / **To** to pick another range.
+- Tick **sites** and **statuses** to filter. Nothing ticked means "all".
+
+- **Sort by** created date or due date, latest or earliest first. Requests without a due date always go last.
+- Canceled, deleted and merged requests are never shown.
+
+### Sharing a view
+
+The address in the browser holds the range, filters, sort and any open request. Copy it and send it to a colleague: they will see the same view.
+
+### Times and dates
+
+Every time is shown in the **site's own local time**, with the zone named, e.g. `07/10/2026 10:00 GMT+11 (Australia/Sydney)`. Sydney's offset changes with daylight saving; the board handles that.
+
+### Marks on a row
+
+- **Overdue**: still pending or processing, and the due date is before today in that site's timezone.
+- **future-dated**: the helpdesk recorded a creation time later than now. These are shown, not hidden, so you can spot data problems.
+
+### One request
+
+Click a row (or its reference) to open the request: its details, who gave the **first response** and when, and its full history, oldest first.
+
+Events that were later undone are hidden; tick **Show undone events** to see them.
+
+Use **Back to board** or the browser's back button to return with your filters intact.
+
+### Live updates
+
+The board follows the helpdesk on its own: changes appear within a minute without reloading, and the top line says when it **last updated**.
+
+Right after opening, the board spends about a minute catching up with the helpdesk's change history; the list is already current during that minute.
+
+### Downloading for Excel
+
+
+**Download CSV** saves every row that matches the current range, filters and sort, in the same order, as `requests-<from>-<to>.csv`.
+
+Excel may show due dates in your computer's date format; the file itself uses `YYYY-MM-DD`.
+
+### When something goes wrong
+
+- If the helpdesk is busy or briefly down, the board waits and retries by itself.
+- If it still can't load, it says why and offers **Try again**.
+- If live updates fail, the board keeps showing the last good data and keeps trying every 20 seconds.
+
+### Phones, keyboard and screen readers
+
+- On a phone, each request becomes a card with labelled fields.
+- Everything works with the keyboard alone: **Tab** to move, **Enter** to open a request. Closing a request puts you back on the row you opened.
+- Screen readers announce the number of requests shown when filters change.
+
+## For developers
+
+| Command | What it does |
 | --- | --- |
-| Builds | `npm ci && npm run build` |
-| Tests pass | `npm test` |
-| Type-checks | `npx tsc --noEmit` |
-| Complete | `DECISIONS.md` with its four headings, at least 5 commits, a video link, no secrets in the code |
+| `npm run dev` | Start the app on port 5173 |
+| `npm test` | Run the unit tests |
+| `npx tsc --noEmit` | Type-check |
+| `npm run build` | Production build into `dist/` |
 
-`.env` is ignored by git; keep it that way. The app reads `HELPDESK_URL` and `HELPDESK_TOKEN` from
-`import.meta.env` (see `vite.config.ts`).
-
-## Submitting
-
-1. Commit as you go (at least 5 commits); we read the history.
-2. Fill in `DECISIONS.md`.
-3. Record a short screen recording (about 3 minutes) of the app, narrated in English.
-4. Push to a **public** repo (e.g. GitHub) and paste the link on your invitation page, or zip the
-   folder **including `.git`** (leave out `node_modules` and `.env`) and upload it there.
-
-Cap it at 3 hours. Go through the levels in order and say in `DECISIONS.md` what you'd do next.
-**Submit even if it's unfinished:** we review everything you did, not only the final result.
-A plain table is enough; polish isn't scored. We never reuse submissions as company work.
+- React 18 + TypeScript + Vite, no other runtime libraries.
+- `src/api.ts` is the only place that calls the helpdesk (retries on `429` and `5xx`).
+- `src/lib/` holds the rules from `docs/rules.md` as pure, tested functions: `rules.ts`, `events.ts`, `changes.ts`, `boardQuery.ts`, `csv.ts`.
+- `src/useBoard.ts` loads a range and keeps it live from `/v1/changes`.
+- `src/RequestDetail.tsx` shows one request and its history.
+- Decisions, API findings and trade-offs are in [DECISIONS.md](DECISIONS.md).
