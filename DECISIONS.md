@@ -42,7 +42,9 @@
 - `/v1/changes` can only be read from the beginning. Catching up on first load took ~160 calls, ~28 MB and ~60–70 s (31 Oct), with ~34 `429` responses along the way; the client waits for `Retry-After` and carries on. Browsers log each `429` in the console, which is expected.
 - Retrying a single call wasn't enough under `429`: when one page failed 4 times mid catch-up, the whole round started again from the beginning and looped (3,600+ calls and ~260 MB in one test). The feed position and unapplied items are now kept across failed rounds, so the next round resumes.
 - Every call has a CORS preflight because of the `Authorization` header; unavoidable for a browser-only app.
-
+- `/v1/sites` returns business hours and `/v1/sites/{id}/holidays` exists, but none of the six rules use them (overdue is by calendar date, not business time), so the board doesn't either.
+- All three site names changed during the test (e.g. "Bluebay House Sydney" became "Robusttechhouse Court Sydney" by 3 Nov). Ids, timezones and business hours stayed the same, and the board keys everything by site id, so filters, shared links and times are unaffected. The change feed has no site event, so an open board shows new site names only after a reload.
+By 3 Nov real time had caught up with those timestamps, so the badge no longer appears; the check itself (`isFutureDated`) is covered by a unit test.
 ## How I used AI
 
 <!-- Which tools, what you asked, what came back wrong, what you changed. "I didn't use AI" is fine too. -->
